@@ -57,7 +57,6 @@ fn global_forces(article: &mut Article) {
 #[macroquad::main(window_conf)]
 async fn main() {
     //set_fullscreen(true);
-    //let texture: macroquad::texture::Texture2D = load_texture("res/textures/smoke_fire.png").await.unwrap();
     
 
 	let mut articles: HashMap<String, Article> = load_articles().await;
@@ -72,8 +71,8 @@ async fn main() {
     while !is_key_down(KeyCode::Escape) {
         clear_background(WHITE);
 		
-		{	
-			let camera = articles.get_mut(&camera_index).unwrap();
+
+		if let Some(camera) = articles.get_mut(&camera_index) {	
 			
 			let zoom = match camera.scratchpad.get("zoom") {
 				Some(z) => *z,
@@ -88,22 +87,13 @@ async fn main() {
 				..Default::default()
 			});
 		}
-
+		
 
 		for index in article_keys.iter() {
 			if let Some(mut article) = articles.remove(index) {
 				if !article.do_destroy {
 					article.tick(&mut articles);
-					/*{
-						Some(actions) => {
-							for (key, vel) in actions.into_iter() {
-								if let Some(a) = articles.get_mut(&key) {
-									a.vel = vel;
-								}
-							}
-						},
-						None => ()
-					}*/
+					
 					if article.mass.is_finite() {					
 						global_forces(&mut article);
 						article.calculate_collisions(&mut articles);

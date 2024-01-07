@@ -19,7 +19,7 @@ pub mod world {
 		
 		let mut player = Article::new(
 			Rect::new(0.0, 0.0, 315.0, 480.0), 
-			Rect::new(1700.0,-900.0,90.0,140.0), 
+			Rect::new(2200.0,-200.0,90.0,140.0), 
 			Some(vec![Rect::new(25.0, 20.0, 45.0, 88.0)])
 		);
 		let texture_filepath = "res/textures/penguin.png";
@@ -116,7 +116,7 @@ pub mod world {
 				Some(vec![Rect::new(0.0, 60.0, 400.0, 60.0)])
 			);
 			platform.name = format!("Platform-{}", i);
-
+			
 			let texture_filepath = "res/textures/grass.png";
 			if let Some(texture) = cached_texture(&mut platform, texture_map.get(texture_filepath).ok_or(texture_filepath)).await {
 				texture_map.insert(texture_filepath, texture);
@@ -280,9 +280,166 @@ pub mod world {
 				}
 				collision_result
 			});
-		articles.insert(enemy.name.clone(), enemy);
+			articles.insert(enemy.name.clone(), enemy);
 		}
+
+		
+		//Fisherman
+		let mut fisherman = Article::new(
+			Rect::new(0.0, 0.0, 384.0, 512.0), 
+			Rect::new(1800.0, -1000.0, 384.0, 512.0), 
+			Some(vec![
+				Rect::new(114.0, 358.0, 73.0, 98.0),	//Torso
+				Rect::new(132.0, 457.0, 41.0, 48.0),	//Legs
+				Rect::new(138.0, 309.0, 35.0, 49.0)		//Head
+			])
+		);
+		let texture_filepath = "res/textures/fisherman_spritesheet.png";
+		if let Some(texture) = cached_texture(&mut fisherman, texture_map.get(texture_filepath).ok_or(texture_filepath)).await {
+			texture_map.insert(texture_filepath, texture);
+		}
+		
+		fisherman.name = format!("fisherman-{}", 0);
+		fisherman.scratchpad.insert("x-index".to_string(), -100.0);
+		fisherman.scratchpad.insert("player-x".to_string(), -100.0);
+		fisherman.scratchpad.insert("player-x".to_string(), -100.0);
+		fisherman.scratchpad.insert("status".to_string(), 0.0);
+		fisherman.mass = 10_000_000.0;
+		fisherman.elasticity = 1.0;
+		fisherman.params.flip_x = true;
+
+	
+		let mut lure  = Article::new(
+			Rect::new(0.0, 0.0, 19.0, 19.0), 
+			Rect::new(100_00.0, 100_000.0,19.0,19.0), 
+			Some(vec![Rect::new(0.0, 0.0, 30.0, 30.0)])
+		);
+		lure.name = format!("lure-{}", fisherman.name.clone());
+		let texture_filepath = "res/textures/lure.png";
+		if let Some(texture) = cached_texture(&mut lure, texture_map.get(texture_filepath).ok_or(texture_filepath)).await {
+			texture_map.insert(texture_filepath, texture);
+		}
+		lure.elasticity = 0.5;
+		lure.mass = 1.0;
+		lure.do_collide = Some(|axis, a, b, intersection| {
+			let mut hidden = 1.0;
+			if a.name.contains("lure") {
+				if let Some(is_hidden) = a.scratchpad.get("hidden") {
+					hidden = *is_hidden;
+				}
+				if hidden == 0.0 {
+					return Article::elastic_collide(axis, a, b, intersection);
+				}
+			}
+			return CollisionResult::DontPropagate(10);
+		});
+		lure.draw = Some(|lure| {
+			let mut hidden = 1.0;
+			if let Some(is_hidden) = lure.scratchpad.get("hidden") {
+				hidden = *is_hidden;
+			}
+			if hidden == 0.0 {
+				let mut pole = lure.pos.clone();
+				if let Some(fisherman_x) = lure.scratchpad.get("fisherman-pole-x") {
+					pole.x = *fisherman_x;
+				}
+				if let Some(fisherman_y) = lure.scratchpad.get("fisherman-pole-y") {
+					pole.y = *fisherman_y;
+				}
+				draw_line(pole.x, pole.y, lure.pos.x, lure.pos.y, 1.0, BLACK);
+			}
+		});
+		articles.insert(lure.name.clone(), lure);
+		
+
+		fisherman.tick = Some(|fisherman, articles| {
+			if let Some(s) = fisherman.scratchpad.remove("status") {
+				let mut status = s;
+				if let Some(player) = articles.get_mut("Player") {
+					if player.pos.distance(fisherman.pos) < 1800.0 {
+						status += 1.0;
+						if status == 90.0 {
+							//Start Casting
+							fisherman.scratchpad.insert("player-x".to_string(), player.pos.x);
+							fisherman.scratchpad.insert("player-y".to_string(), player.pos.y);
+						}
+					} else {
+						status = 0.0;
+					}
+				}
+
+				let lure_name = format!("lure-{}", fisherman.name.clone());
+				if let Some(lure) = articles.get_mut(lure_name.as_str()) {
+					if status == 90.0  {
+						//Position lure above fisherman
+						lure.pos.x = fisherman.pos.x;
+						lure.pos.y = fisherman.pos.y-20.0;
+						lure.vel.y = -15.0;
+						//Calculate x vel to run into player
+						if let Some(player_x) = fisherman.scratchpad.get("player-x") {
+							lure.vel.x = (*player_x - lure.pos.x)/40.0;
+						}
+						lure.scratchpad.insert("fisherman-pole-x".to_string(), fisherman.pos.x + 281.0);
+						lure.scratchpad.insert("fisherman-pole-y".to_string(), fisherman.pos.y + 197.0);
+						lure.scratchpad.insert("hidden".to_string(), 0.0);
+
+					} else if [20.0, 50.0, 60.0, 70.0, 80.0, 90.0].contains(&status) {
+						fisherman.increment_frame(Vec2::X);
+					} else if status > 400.0 {
+						status = 1.0;
+						fisherman.set_frame(Vec2::new(0.0, 0.0));
+						lure.scratchpad.insert("hidden".to_string(), 1.0);
+					} else if status == 0.0 {
+						//Reset lure
+						lure.scratchpad.insert("hidden".to_string(), 1.0);
+						fisherman.set_frame(Vec2::ZERO);
+
+
+						/* 
+						if fisherman.vel.x >= 0.0 {
+							fisherman.vel.x = 3.0;
+							fisherman.params.flip_x = true;
+						} else {
+							fisherman.vel.x = -3.0;
+							fisherman.params.flip_x = false;
+						}
+						if let Some(x_index) = fisherman.scratchpad.get("x-index") {
+							if (-500.0 + x_index) > fisherman.pos.x {
+								fisherman.pos.x = -500.0 + x_index;
+								fisherman.vel.x = 3.0;
+							}
+							if fisherman.pos.x > (1000.0 + x_index) {
+								fisherman.pos.x = 1000.0 + x_index;
+								fisherman.vel.x = -3.0;
+							}
+						}
+						*/
+					}
+				}
+				fisherman.scratchpad.insert("status".to_string(), status);
+			}
+		});
+		fisherman.do_collide = Some(|axis, a, b, intersection| {
+			if axis.y == 1.0 && b.vel.y > 0.1 {
+				a.vel.y -= 15.0;
+			}
+			
+			let collision_result = Article::default_collide(axis, a, b, intersection);
+			if axis.y == 1.0 && b.vel.y > 0.1 {
+				a.vel.y += 15.0;
+			}
+			if axis.x == 1.0 {
+				a.vel.x *= -1.0;
+			}
+			collision_result
+		});
+
+		articles.insert(fisherman.name.clone(), fisherman);
+
 
 		articles
 	}
+
+	
+
 }

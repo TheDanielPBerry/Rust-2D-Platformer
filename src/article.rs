@@ -21,6 +21,7 @@ pub mod article {
 		pub tick: Option<fn(&mut Article, &mut HashMap<String, Article>)>,
 		pub do_collide: Option<fn(axis: Vec2
 			, top: &mut Article, bottom: &mut Article, intersection: &Rect) -> CollisionResult>,
+		pub draw: Option<fn(&mut Article)>,
 		pub attached: Option<String>,	//Name of attached article, used to map items together
 		pub attached_to: Vec<String>,
 		pub scratchpad: HashMap<String, f32>
@@ -49,6 +50,7 @@ pub mod article {
 				elasticity: 0.01,
 				tick: None,
 				do_collide: None,
+				draw: None,
 				attached: None,
 				attached_to: Vec::new(),
 				scratchpad: HashMap::new()
@@ -63,10 +65,51 @@ pub mod article {
 			self.texture.clone()
 		}
 
-		pub fn draw(&self) {
+		/**
+		 * Position is normalized against the dest_size
+		 */
+		pub fn set_frame(&mut self, position: Vec2) {
+			if let Some(source) = self.params.source {
+				if let Some(dest) = self.params.dest_size {
+					let delta = dest * position;
+					let mut new_source: Rect = Rect::new(delta.x, delta.y, source.w, source.h);
+					if let Some(texture) = &self.texture {
+						if (new_source.x + new_source.w) >= texture.size().x {
+							new_source.x = 0.0;
+						}
+						if (new_source.y + new_source.h) >= texture.size().y {
+							new_source.y = 0.0;
+						}
+					}
+					self.params.source = Some(new_source);
+				}
+			}
+		}
+		pub fn increment_frame(&mut self, axis: Vec2) {
+			if let Some(source) = self.params.source {
+				if let Some(dest) = self.params.dest_size {
+					let delta = dest * axis;
+					let mut new_source = Rect::new(source.x + delta.x, source.y + delta.y, source.w, source.h);
+					if let Some(texture) = &self.texture {
+						if (new_source.x + new_source.w) > texture.size().x {
+							new_source.x = 0.0;
+						}
+						if (new_source.y + new_source.h) > texture.size().y {
+							new_source.y = 0.0;
+						}
+					}
+					self.params.source = Some(new_source);
+				}
+			}
+		}
+
+		pub fn draw(&mut self) {
 			match &self.texture {
 				Some(t) => draw_texture_ex(&t, self.pos.x, self.pos.y, WHITE, self.params.clone()),
 				None => ()
+			}
+			if let Some(draw_func) = self.draw {
+				(draw_func)(self);
 			}
 			if let Some(bounds) = &self.bounds {
 				for bound in bounds.iter() {
