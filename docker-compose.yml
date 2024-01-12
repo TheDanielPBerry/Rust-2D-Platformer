@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  app:
+    container_name: wasm-development
+    image: httpd:latest
+    volumes:
+      - ./target/wasm32-unknown-unknown/debug:/usr/local/apache2/htdocs
+      - ./res:/usr/local/apache2/htdocs/res
+    ports:
+      - 3000:80
