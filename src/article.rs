@@ -1,5 +1,5 @@
 pub mod article {
-	use macroquad::{math::Rect, math::Vec2, texture::{Texture2D, DrawTextureParams, draw_texture_ex}, color::{WHITE, RED}, shapes::draw_rectangle_lines, input::is_key_down, miniquad::KeyCode};
+	use macroquad::{math::vec2, math::Rect, math::Vec2, texture::{Texture2D, DrawTextureParams, draw_texture_ex}, color::{WHITE, RED}, shapes::draw_rectangle_lines, input::is_key_down, miniquad::KeyCode};
 	use std::{fmt::{ Display, Formatter, Result as FmtResult }, collections::HashMap};
 	pub trait Element {
 		fn tick(&self);
@@ -21,7 +21,7 @@ pub mod article {
 		pub tick: Option<fn(&mut Article, &mut HashMap<String, Article>)>,
 		pub do_collide: Option<fn(axis: Vec2
 			, top: &mut Article, bottom: &mut Article, intersection: &Rect) -> CollisionResult>,
-		pub draw: Option<fn(&mut Article)>,
+		pub draw: Option<fn(&mut Article) -> bool>,	//Option to draw extras in the context of the article
 		pub attached: Option<String>,	//Name of attached article, used to map items together
 		pub attached_to: Vec<String>,
 		pub scratchpad: HashMap<String, f32>
@@ -32,20 +32,20 @@ pub mod article {
 			Self {
 				name: String::from("Article"),
 				texture: None,
-				pos: Vec2::new(dest.x.to_owned(), dest.y.to_owned()),
+				pos: vec2(dest.x.to_owned(), dest.y.to_owned()),
 				bounds: bounds.to_owned(),
 				params: DrawTextureParams {
-					dest_size: Some(Vec2::new(dest.w, dest.h)),
+					dest_size: Some(vec2(dest.w, dest.h)),
 					source: Some(src),
 					rotation: 0.0,
 					flip_x: false,
 					flip_y: false,
-					pivot: Some(Vec2::new(0.5, 0.5))
+					pivot: Some(vec2(0.5, 0.5))
 				},
 				do_destroy: false,
 				mass: 1.0,
-				vel: Vec2::new(0.0, 0.0),
-				cog: Vec2::new(dest.w / 2.0, dest.h / 2.0),
+				vel: vec2(0.0, 0.0),
+				cog: vec2(dest.w / 2.0, dest.h / 2.0),
 				friction_coefficient: 0.9,
 				elasticity: 0.01,
 				tick: None,
@@ -104,24 +104,59 @@ pub mod article {
 		}
 
 		pub fn draw(&mut self) {
-			match &self.texture {
-				Some(t) => draw_texture_ex(&t, self.pos.x, self.pos.y, WHITE, self.params.clone()),
-				None => ()
-			}
+			let mut draw_texture = true;
 			if let Some(draw_func) = self.draw {
-				(draw_func)(self);
+				draw_texture = (draw_func)(self);
 			}
-			if let Some(bounds) = &self.bounds {
-				for bound in bounds.iter() {
-					let bound_delta = bound.offset(self.pos);
-					draw_rectangle_lines(bound_delta.x, bound_delta.y, bound_delta.w, bound_delta.h, 5.0, RED);
+			if draw_texture {
+				match &self.texture {
+					Some(t) => draw_texture_ex(&t, self.pos.x, self.pos.y, WHITE, self.params.clone()),
+					None => ()
+				}
+				if let Some(bounds) = &self.bounds {
+					for bound in bounds.iter() {
+						let bound_delta = bound.offset(self.pos);
+						draw_rectangle_lines(bound_delta.x, bound_delta.y, bound_delta.w, bound_delta.h, 5.0, RED);
+					}
 				}
 			}
 		}
 
+		pub fn set_direction(&mut self, axis: Vec2) {
+			if let Some(bounds) = &mut self.bounds {
+				if let Some(dest) = self.params.dest_size {
+					for bounding_rect in bounds.iter_mut() {
+						if !self.params.flip_x && axis == Vec2::X {
+							bounding_rect.x = dest.x - bounding_rect.x - bounding_rect.w;
+							//self.pos.x += self.cog.x;
+						} else if self.params.flip_x && axis == -Vec2::X {
+							bounding_rect.x = dest.x - (bounding_rect.x + bounding_rect.w);
+							//self.pos.x -= self.cog.x;
+						}
+						if !self.params.flip_y && axis == Vec2::Y {
+							bounding_rect.y = dest.y - bounding_rect.y - bounding_rect.h;
+						} else if self.params.flip_y && axis == -Vec2::Y {
+							bounding_rect.y = dest.y - (bounding_rect.y + bounding_rect.h);
+						}
+					}
+				}
+			}
+
+			if axis == Vec2::X {
+				self.params.flip_x = true;
+			} else if axis == -Vec2::X {
+				self.params.flip_x = false;
+			} else if axis == Vec2::Y {
+				self.params.flip_y = true;
+			} else if axis == -Vec2::Y {
+				self.params.flip_y = false;
+			}
+
+		}
+
 		pub fn tick(&mut self, articles: &mut HashMap<String, Article>) {
 			if let Some(v) = self.params.dest_size {
-				self.params.pivot = Some(self.pos + (v / Vec2::new(2.0, 2.0)));
+				self.params.pivot = Some(self.pos + (v / vec2(2.0, 2.0)));
 			}
 			self.attached_to.iter().for_each(|key| {
 				if let Some(attachment) = articles.get_mut(key) {
@@ -130,7 +165,6 @@ pub mod article {
 			if let Some(tick_func) = self.tick {
 				(tick_func)(self, articles);
 			}
-			//self.remove_attachment(articles);
  		}
 
 		pub fn attach(&mut self, attachment: String,  articles: &mut HashMap<String, Article>) {
@@ -305,8 +339,8 @@ pub mod article {
 			if bv.is_nan() {
 				bv = 0.0;
 			}
-			a.vel = Vec2::select(axis.cmpeq(Vec2::ONE), Vec2::new(av, av), Vec2::new(a.vel.x, a.vel.y));
-			b.vel = Vec2::select(axis.cmpeq(Vec2::ONE), Vec2::new(bv, bv), Vec2::new(b.vel.x, b.vel.y));
+			a.vel = Vec2::select(axis.cmpeq(Vec2::ONE), vec2(av, av), vec2(a.vel.x, a.vel.y));
+			b.vel = Vec2::select(axis.cmpeq(Vec2::ONE), vec2(bv, bv), vec2(b.vel.x, b.vel.y));
 			
 			CollisionResult::DontPropagate(1)
 		}

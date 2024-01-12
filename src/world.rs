@@ -20,7 +20,7 @@ pub mod world {
 		let mut player = Article::new(
 			Rect::new(0.0, 0.0, 315.0, 480.0), 
 			Rect::new(2200.0,-200.0,90.0,140.0), 
-			Some(vec![Rect::new(25.0, 20.0, 45.0, 88.0)])
+			Some(vec![Rect::new(25.0, 20.0, 40.0, 88.0)])
 		);
 		let texture_filepath = "res/textures/penguin.png";
 		if let Some(texture) = cached_texture(&mut player, texture_map.get(texture_filepath).ok_or(texture_filepath)).await {
@@ -29,16 +29,16 @@ pub mod world {
 		player.name = "Player".to_string();
 		player.mass = 5.0;
 		player.elasticity = 0.5;
-		//player.vel.x = 20.0;
+		player.cog = vec2(44.5, 66.0);
 
-		player.tick = Some(|a, articles| {
+		player.tick = Some(|a, _articles| {
 			{
 				let (_, mouse_wheel_y) = mouse_wheel();
 				if mouse_wheel_y != 0.0 {
 					if let Some(z) = a.scratchpad.get_mut("zoom") {
 						*z *= 1.1f32.powf(mouse_wheel_y/mouse_wheel_y.abs());
 					} else {
-						a.scratchpad.insert("zoom".to_string(), 0.001);
+						a.scratchpad.insert("zoom".to_string(), 0.0008);
 					}
 				}
 			}
@@ -49,7 +49,7 @@ pub mod world {
 				a.params.rotation = std::f32::consts::PI / 2.0;
 				if a.friction_coefficient == 0.85 {
 					if let Some(new_dest_size) = a.params.dest_size {
-						a.params.dest_size = Some(Vec2::new(new_dest_size.y, new_dest_size.x));
+						a.params.dest_size = Some(vec2(new_dest_size.y, new_dest_size.x));
 					}
 					a.vel.x*=1.5;
 				}
@@ -58,7 +58,7 @@ pub mod world {
 				a.params.rotation = 0.0;
 				if a.friction_coefficient == 0.99999 {
 					if let Some(new_dest_size) = a.params.dest_size {
-						a.params.dest_size = Some(Vec2::new(new_dest_size.y, new_dest_size.x));
+						a.params.dest_size = Some(vec2(new_dest_size.y, new_dest_size.x));
 					}
 				}
 				a.friction_coefficient = 0.85;
@@ -71,7 +71,7 @@ pub mod world {
 					} else if a.vel.x >= 0.0 {
 						a.vel.x -= 2.0;
 					}
-					a.params.flip_x = false;
+					a.set_direction(-Vec2::X);
 				}
 				else if is_key_down(KeyCode::D) ||  is_key_down(KeyCode::Right) {
 					if let Some(_) = a.attached {
@@ -81,7 +81,7 @@ pub mod world {
 					} else if a.vel.x <= 0.0 {
 						a.vel.x += 2.0;
 					}
-					a.params.flip_x = true;
+					a.set_direction(Vec2::X);
 				}
 			}
 			if is_key_down(KeyCode::Space) ||is_key_down(KeyCode::W) ||  is_key_down(KeyCode::Up) {
@@ -238,9 +238,9 @@ pub mod world {
 			let x_index = i as f32 * 400.0;
 			//Enemy
 			let mut enemy = Article::new(
-				Rect::new(0.0, 0.0, 256.0, 256.0), 
-				Rect::new(x_index,0.0,256.0,256.0), 
-				Some(vec![Rect::new(47.0, 33.0, 120.0, 80.0)])
+				Rect::new(0.0, 0.0, 256.0, 128.0), 
+				Rect::new(x_index,0.0,256.0,128.0), 
+				Some(vec![Rect::new(47.0, 33.0, 129.0, 62.0)])
 			);
 			let texture_filepath = "res/textures/spider.png";
 			if let Some(texture) = cached_texture(&mut enemy, texture_map.get(texture_filepath).ok_or(texture_filepath)).await {
@@ -254,18 +254,18 @@ pub mod world {
 			enemy.tick = Some(|enemy, articles| {
 				if enemy.vel.x >= 0.0 {
 					enemy.vel.x = 6.0;
-					enemy.params.flip_x = false;
+					enemy.set_direction(Vec2::X);
 				} else {
 					enemy.vel.x = -6.0;
-					enemy.params.flip_x = true;
+					enemy.set_direction(-Vec2::X);
 				}
 				if let Some(x_index) = enemy.scratchpad.get("x-index") {
 					if (-500.0 + x_index) > enemy.pos.x {
-						enemy.pos.x = (-500.0 + x_index);
+						enemy.pos.x = -500.0 + x_index;
 						enemy.vel.x = 5.0;
 					}
 					if enemy.pos.x > (1000.0 + x_index) {
-						enemy.pos.x = (1000.0 + x_index);
+						enemy.pos.x = 1000.0 + x_index;
 						enemy.vel.x = -5.0;
 					}
 				}
@@ -306,13 +306,14 @@ pub mod world {
 		fisherman.scratchpad.insert("status".to_string(), 0.0);
 		fisherman.mass = 10_000_000.0;
 		fisherman.elasticity = 1.0;
-		fisherman.params.flip_x = true;
+		fisherman.set_direction(Vec2::X);
+		
 
 	
 		let mut lure  = Article::new(
-			Rect::new(0.0, 0.0, 19.0, 19.0), 
-			Rect::new(100_00.0, 100_000.0,19.0,19.0), 
-			Some(vec![Rect::new(0.0, 0.0, 30.0, 30.0)])
+			Rect::new(0.0, 0.0, 32.0, 32.0), 
+			Rect::new(100_00.0, 100_000.0,32.0,32.0), 
+			Some(vec![Rect::new(0.0, 0.0, 25.0, 25.0)])
 		);
 		lure.name = format!("lure-{}", fisherman.name.clone());
 		let texture_filepath = "res/textures/lure.png";
@@ -333,7 +334,7 @@ pub mod world {
 			}
 			return CollisionResult::DontPropagate(10);
 		});
-		lure.draw = Some(|lure| {
+		lure.draw = Some(|lure| -> bool {
 			let mut hidden = 1.0;
 			if let Some(is_hidden) = lure.scratchpad.get("hidden") {
 				hidden = *is_hidden;
@@ -346,7 +347,16 @@ pub mod world {
 				if let Some(fisherman_y) = lure.scratchpad.get("fisherman-pole-y") {
 					pole.y = *fisherman_y;
 				}
-				draw_line(pole.x, pole.y, lure.pos.x, lure.pos.y, 1.0, BLACK);
+				draw_line(pole.x, pole.y, lure.pos.x+5.0, lure.pos.y+5.0, 1.0, BLACK);
+			}
+			return hidden == 0.0;
+		});
+		lure.tick = Some(|lure, articles| {
+			if let Some(player) = articles.get_mut("Player") {
+				if (player.pos.x - lure.pos.x).abs() < 300.0 {
+					//Need to calculate lure distance and remaining velocity
+					lure.vel.x *= 0.89 + (player.pos.x - lure.pos.x).abs() / 3000.0;
+				}
 			}
 		});
 		articles.insert(lure.name.clone(), lure);
@@ -372,12 +382,12 @@ pub mod world {
 				if let Some(lure) = articles.get_mut(lure_name.as_str()) {
 					if status == 90.0  {
 						//Position lure above fisherman
-						lure.pos.x = fisherman.pos.x;
-						lure.pos.y = fisherman.pos.y-20.0;
+						lure.pos.x = fisherman.pos.x + 281.0;
+						lure.pos.y = fisherman.pos.y + 197.0;
 						lure.vel.y = -15.0;
 						//Calculate x vel to run into player
 						if let Some(player_x) = fisherman.scratchpad.get("player-x") {
-							lure.vel.x = (*player_x - lure.pos.x)/40.0;
+							lure.vel.x = (*player_x - lure.pos.x)/50.0;
 						}
 						lure.scratchpad.insert("fisherman-pole-x".to_string(), fisherman.pos.x + 281.0);
 						lure.scratchpad.insert("fisherman-pole-y".to_string(), fisherman.pos.y + 197.0);
@@ -387,7 +397,7 @@ pub mod world {
 						fisherman.increment_frame(Vec2::X);
 					} else if status > 400.0 {
 						status = 1.0;
-						fisherman.set_frame(Vec2::new(0.0, 0.0));
+						fisherman.set_frame(vec2(0.0, 0.0));
 						lure.scratchpad.insert("hidden".to_string(), 1.0);
 					} else if status == 0.0 {
 						//Reset lure
