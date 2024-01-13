@@ -176,7 +176,10 @@ pub mod article {
 					*health += delta_health;
 				}
 			}
-			self.scratchpad.insert("most_recent_damage".to_string(), seconds_since_midnight);
+			if delta_health < 0.0 {
+				//If damaged, don't allow damage again for certain number of seconds
+				self.scratchpad.insert("most_recent_damage".to_string(), seconds_since_midnight);
+			}
 		}
 
 

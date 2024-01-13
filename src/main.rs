@@ -92,12 +92,7 @@ async fn main() {
 		
 
 		if let Some(player) = articles.get_mut(&camera_index) {
-
-			
-			let zoom = match player.scratchpad.get("zoom") {
-				Some(z) => *z,
-				None => 0.0008
-			};
+			let zoom = *(player.scratchpad.get("zoom").unwrap_or(&0.0008));
 
 			camera_track = get_camera_track(camera_track, player);
 			camera.target = vec2(player.pos.x + player.cog.x - (camera_track.x) + 50.0, player.pos.y + player.cog.y + (camera_track.y));
@@ -109,19 +104,20 @@ async fn main() {
 		for index in article_keys.iter() {
 			if let Some(mut article) = articles.remove(index) {
 				if !article.do_destroy {
-					article.tick(&mut articles);
-					
-					if article.mass.is_finite() {					
+					if article.mass.is_finite() {
 						global_forces(&mut article);
+					}
+					article.tick(&mut articles);
+					if article.mass.is_finite() {
 						article.calculate_collisions(&mut articles);
 					}
 
-
+					
 					article.draw();
 
 					articles.insert(index.clone(), article);
 				}
-				//If do destroy is set, article is dereferenced and freeds
+				//If do destroy is set, article is dereferenced and freed
 			}
 		}
 
@@ -129,14 +125,9 @@ async fn main() {
 		//Paint UI Fixtures last
 		if let Some(player) = articles.get_mut(&camera_index) {
 
-			let player_health = match player.scratchpad.get("health") {
-				Some(h) => *h as i32,
-				None => 5
-			};
-			let avail_player_health = match player.scratchpad.get("avail_health") {
-				Some(h) => *h as i32,
-				None => 5
-			};
+			let player_health = *(player.scratchpad.get("health").unwrap_or(&5.0)) as i32;
+			let avail_player_health = *(player.scratchpad.get("avail_health").unwrap_or(&5.0)) as i32;
+
 			let ui_scale = 0.00200;
 			camera.zoom = vec2(ui_scale, ui_scale*1.2);
 			set_camera(&camera);
