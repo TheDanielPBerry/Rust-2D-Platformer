@@ -30,6 +30,9 @@ pub mod world {
 		player.mass = 5.0;
 		player.elasticity = 0.5;
 		player.cog = vec2(44.5, 66.0);
+		player.scratchpad.insert("avail_health".to_string(), 5.0);
+		player.scratchpad.insert("health".to_string(), 5.0);
+
 
 		player.tick = Some(|a, _articles| {
 			{
@@ -51,9 +54,9 @@ pub mod world {
 					if let Some(new_dest_size) = a.params.dest_size {
 						a.params.dest_size = Some(vec2(new_dest_size.y, new_dest_size.x));
 					}
-					a.vel.x*=1.5;
+					a.vel.x*=1.5;	//Dash once when on belly
 				}
-				a.friction_coefficient = 0.99999;
+				a.friction_coefficient = 0.99999;	//Update to new friction coefficient to allow sliding
 			} else {
 				a.params.rotation = 0.0;
 				if a.friction_coefficient == 0.99999 {
@@ -179,24 +182,22 @@ pub mod world {
 			articles.insert(platform.name.clone(), platform);
 		}
 		
-		
-		for y in -1..=0 {
-			for x in (-2+y)..(2+y) {
-				let mut article = Article::new(
-					Rect::new(0.0, 120.0, 2056.0, 512.0), 
-					Rect::new(2056.0 * x as f32,500.0 + (1000.0 * y as f32),2056.0,512.0), 
-					Some(vec![Rect::new(0.0, 40.0, 2056.0, 472.0)])
-				);
-				article.name = format!("Grass-{}-{}", x, y);
+		/*Icy Ground */
+		for x in -2..2 {
+			let mut article = Article::new(
+				Rect::new(0.0, 0.0, 6184.0, 2048.0), 
+				Rect::new(6184.0 * x as f32,500.0,6184.0,2048.0), 
+				Some(vec![Rect::new(0.0, 56.0, 6184.0, 1992.0)])
+			);
+			article.name = format!("Grass-{}-{}", x, y);
 
-				let texture_filepath = "res/textures/grass.png";
-				if let Some(texture) = cached_texture(&mut article, texture_map.get(texture_filepath).ok_or(texture_filepath)).await {
-					texture_map.insert(texture_filepath, texture);
-				}
-				article.mass = f32::INFINITY;
-				article.elasticity = 0.0;
-				articles.insert(article.name.clone(), article);
+			let texture_filepath = "res/textures/snow.png";
+			if let Some(texture) = cached_texture(&mut article, texture_map.get(texture_filepath).ok_or(texture_filepath)).await {
+				texture_map.insert(texture_filepath, texture);
 			}
+			article.mass = f32::INFINITY;
+			article.elasticity = 0.0;
+			articles.insert(article.name.clone(), article);
 		}
 
 		for x in 8..20 {
@@ -273,6 +274,9 @@ pub mod world {
 			enemy.do_collide = Some(|axis, a, b, intersection| {
 				if axis.y == 1.0 && b.vel.y > 0.1 {
 					a.do_destroy = true;
+				} else if b.name.contains("Player") {
+					b.update_health(-1.0);
+					a.scratchpad.insert("hidden".to_string(), 1.0);
 				}
 				let collision_result = Article::default_collide(axis, a, b, intersection);
 				if axis.x == 1.0 {
@@ -324,21 +328,31 @@ pub mod world {
 		lure.mass = 1.0;
 		lure.do_collide = Some(|axis, a, b, intersection| {
 			let mut hidden = 1.0;
+
 			if a.name.contains("lure") {
-				if let Some(is_hidden) = a.scratchpad.get("hidden") {
-					hidden = *is_hidden;
-				}
+				hidden = match a.scratchpad.get("hidden") {
+					Some(h) => *h,
+					None => hidden
+				};
+				
 				if hidden == 0.0 {
+					
+					if b.name.contains("Player") {
+						b.update_health(-1.0);
+						a.scratchpad.insert("hidden".to_string(), 1.0);
+					}
+
 					return Article::elastic_collide(axis, a, b, intersection);
 				}
 			}
 			return CollisionResult::DontPropagate(10);
 		});
 		lure.draw = Some(|lure| -> bool {
-			let mut hidden = 1.0;
-			if let Some(is_hidden) = lure.scratchpad.get("hidden") {
-				hidden = *is_hidden;
-			}
+			let hidden = match lure.scratchpad.get("hidden") {
+				Some(h) => *h,
+				None => 1.0
+			};
+
 			if hidden == 0.0 {
 				let mut pole = lure.pos.clone();
 				if let Some(fisherman_x) = lure.scratchpad.get("fisherman-pole-x") {
@@ -354,8 +368,10 @@ pub mod world {
 		lure.tick = Some(|lure, articles| {
 			if let Some(player) = articles.get_mut("Player") {
 				if (player.pos.x - lure.pos.x).abs() < 300.0 {
-					//Need to calculate lure distance and remaining velocity
-					lure.vel.x *= 0.89 + (player.pos.x - lure.pos.x).abs() / 3000.0;
+					if lure.vel.abs().x > 1.0 {
+						//Need to calculate lure distance and remaining velocity
+						lure.vel.x *= 0.9 + (player.pos.x - lure.pos.x).abs() / (300.0 * lure.vel.abs().x);
+					}
 				}
 			}
 		});

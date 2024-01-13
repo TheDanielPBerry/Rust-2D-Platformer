@@ -1,6 +1,8 @@
 pub mod article {
 	use macroquad::{math::vec2, math::Rect, math::Vec2, texture::{Texture2D, DrawTextureParams, draw_texture_ex}, color::{WHITE, RED}, shapes::draw_rectangle_lines, input::is_key_down, miniquad::KeyCode};
-	use std::{fmt::{ Display, Formatter, Result as FmtResult }, collections::HashMap};
+	use std::{fmt::{ Display, Formatter, Result as FmtResult }, collections::HashMap, time::SystemTime};
+	use chrono::prelude::*;
+
 	pub trait Element {
 		fn tick(&self);
 		fn draw(&self);
@@ -153,6 +155,30 @@ pub mod article {
 			}
 
 		}
+
+		pub fn update_health(&mut self, delta_health: f32) {
+			let seconds_since_midnight = Utc::now().num_seconds_from_midnight() as f32;
+			if let Some(most_recent_damage_time) = self.scratchpad.get("most_recent_damage") {
+				if seconds_since_midnight - *most_recent_damage_time <= 2.0 {
+					return;	//Article was damaged too recently. Do not continue
+				}
+			}
+
+			let avail_health = match self.scratchpad.get("avail_health") {
+				Some(h) => *h,
+				None => 5.0
+			};
+
+			if let Some(health) = self.scratchpad.get_mut("health") {
+				if (*health + delta_health) > avail_health {
+					*health = avail_health;
+				} else {
+					*health += delta_health;
+				}
+			}
+			self.scratchpad.insert("most_recent_damage".to_string(), seconds_since_midnight);
+		}
+
 
 		pub fn tick(&mut self, articles: &mut HashMap<String, Article>) {
 			if let Some(v) = self.params.dest_size {

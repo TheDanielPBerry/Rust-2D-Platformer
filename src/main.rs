@@ -79,6 +79,9 @@ async fn main() {
 
 	let camera_index = "Player".to_string();
 	let mut camera_track = Vec2::ZERO;
+	let mut camera = Camera2D {
+		..Default::default()
+	};
 
 	let ui_textures = load_ui_textures().await;
 	
@@ -88,21 +91,18 @@ async fn main() {
         clear_background(WHITE);
 		
 
-		if let Some(camera) = articles.get_mut(&camera_index) {
+		if let Some(player) = articles.get_mut(&camera_index) {
 
 			
-			let zoom = match camera.scratchpad.get("zoom") {
+			let zoom = match player.scratchpad.get("zoom") {
 				Some(z) => *z,
 				None => 0.0008
 			};
 
-			camera_track = get_camera_track(camera_track, camera);
-			
-			set_camera(&Camera2D {
-				target: vec2(camera.pos.x + camera.cog.x - (camera_track.x) + 50.0, camera.pos.y + camera.cog.y + (camera_track.y)),
-				zoom: vec2(zoom, zoom * screen_width() / screen_height()),
-				..Default::default()
-			});
+			camera_track = get_camera_track(camera_track, player);
+			camera.target = vec2(player.pos.x + player.cog.x - (camera_track.x) + 50.0, player.pos.y + player.cog.y + (camera_track.y));
+			camera.zoom = vec2(zoom, zoom * screen_width() / screen_height());
+			set_camera(&camera);
 		}
 		
 
@@ -127,33 +127,30 @@ async fn main() {
 
 
 		//Paint UI Fixtures last
-		if let Some(camera) = articles.get_mut(&camera_index) {
+		if let Some(player) = articles.get_mut(&camera_index) {
 
-			let player_health = match camera.scratchpad.get("health") {
+			let player_health = match player.scratchpad.get("health") {
 				Some(h) => *h as i32,
 				None => 5
 			};
-			let avail_player_health = match camera.scratchpad.get("avail_health") {
+			let avail_player_health = match player.scratchpad.get("avail_health") {
 				Some(h) => *h as i32,
 				None => 5
 			};
+			let ui_scale = 0.00200;
+			camera.zoom = vec2(ui_scale, ui_scale*1.2);
+			set_camera(&camera);
 			
-			set_camera(&Camera2D {
-				target: vec2(0.0, 0.0),
-				zoom: vec2(0.001, 0.001 * screen_width() / screen_height()),
-				..Default::default()
-			});
-
 
 			//Draw Player Health Bars
 			for fishdex in 0..avail_player_health {
 				let texture_key = if fishdex < player_health { "fish.png" } else { "empty_fish.png" };
 				if let Some(fishture) = ui_textures.get(texture_key) {
-					let mut x = camera.pos.x + camera.cog.x - (camera_track.x) + 50.0;
-					x += (screen_width() / 2.0) - ((avail_player_health * 40) + 200) as f32;
+					let mut x = camera.target.x;
+					x += 470.0 - (avail_player_health * 40) as f32;
 					x += fishdex as f32 * 40.0;
-					let mut y = camera.pos.y;
-					y += -(screen_height() / 2.0) + 40.0;
+					let mut y = camera.target.y;
+					y += -400.0;
 					draw_texture(fishture, x, y, WHITE);
 				}
 			}
